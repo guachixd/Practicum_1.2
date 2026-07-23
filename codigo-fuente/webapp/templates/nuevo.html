@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Nuevo documento — UTPL{% endblock %}
+{% block ancho_contenido %}angosto{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina">
+  <h1>Nuevo documento</h1>
+  <p>Estos datos se usan también para la portada y la marca de agua del documento final.</p>
+</div>
+
+<div class="tarjeta">
+  <div class="barra-pasos">
+    <span class="paso activo"></span><span class="paso"></span><span class="paso"></span>
+  </div>
+
+  <form method="post">
+    <label class="primero" for="nombre_docente">Nombre del docente</label>
+    <input type="text" id="nombre_docente" name="nombre_docente" value="{{ datos.nombre_docente }}" required autofocus>
+
+    <label for="carrera">Carrera</label>
+    <input type="text" id="carrera" name="carrera" value="{{ datos.carrera }}" placeholder="Ej. Ingeniería en Informática">
+
+    <div class="fila-2">
+      <div>
+        <label for="ciclo_academico">Ciclo académico</label>
+        <input type="text" id="ciclo_academico" name="ciclo_academico" value="{{ datos.ciclo_academico }}" placeholder="Ej. Cuarto ciclo">
+      </div>
+      <div>
+        <label for="periodo">Periodo</label>
+        <input type="text" id="periodo" name="periodo" value="{{ datos.periodo }}" placeholder="Ej. Abril - Agosto 2026">
+      </div>
+    </div>
+
+    <label for="asignatura">Asignatura</label>
+    <input type="text" id="asignatura" name="asignatura" value="{{ datos.asignatura }}" placeholder="Ej. Arquitectura y Organización de Computadores" required>
+
+    <label for="codigo">Código de la asignatura</label>
+    <input type="text" id="codigo" name="codigo" value="{{ datos.codigo }}" placeholder="Ej. COMP_2010">
+
+    <div class="acciones-formulario">
+      <a href="{{ url_for('dashboard') }}" class="boton boton-fantasma">Cancelar</a>
+      <button type="submit" class="boton boton-primario">Continuar → Subir archivos</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

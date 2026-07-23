@@ -1,0 +1,10 @@
+python-docx
+python-pptx
+PyMuPDF
+google-genai
+python-dotenv
+pymongo
+Pillow
+langdetect
+Flask
+Werkzeug

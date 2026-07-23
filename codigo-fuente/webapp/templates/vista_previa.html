@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block titulo %}Vista previa — UTPL{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina">
+  <h1>{{ trabajo.asignatura }}{% if trabajo.codigo %} ({{ trabajo.codigo }}){% endif %}</h1>
+  <p>Así quedó cada apartado, con la calificación que le puso la IA. Marca los que quieras regenerar.</p>
+</div>
+
+{% if trabajo.costo_total_usd is defined and trabajo.costo_total_usd is not none %}
+  <p class="texto-ayuda" style="margin-bottom:20px;">
+    Costo aproximado de esta generación: ${{ "%.4f"|format(trabajo.costo_total_usd) }}
+    {% if trabajo.resumen_calificaciones %}
+      · {{ trabajo.resumen_calificaciones.aprobados_primera }} apartado(s) aprobado(s) a la primera,
+      {{ trabajo.resumen_calificaciones.reformulados }} necesitaron reformular
+    {% endif %}
+  </p>
+{% endif %}
+
+<form method="post" id="form-regenerar">
+  {% for unidad in unidades %}
+    <div class="tarjeta-unidad">
+      <h3>Unidad {{ unidad.numero }} — {{ unidad.titulo }}</h3>
+      <div class="rejilla-apartados">
+        {% for apartado in unidad.apartados %}
+          <label class="tarjeta-apartado">
+            <input type="checkbox" name="recurso" value="{{ unidad.numero }}:{{ apartado.tipo }}" class="marca-seleccion">
+            <span class="nombre-apartado">
+              {%- if apartado.tipo == 'resumen' -%} Resumen
+              {%- elif apartado.tipo == 'glosario' -%} Glosario
+              {%- elif apartado.tipo == 'preguntas' -%} Preguntas
+              {%- else -%} Actividad
+              {%- endif -%}
+            </span>
+            {% if apartado.calificacion %}
+              <span class="puntaje {{ 'puntaje-aprobado' if apartado.calificacion.aprobado else 'puntaje-reformulado' }}">
+                {{ apartado.calificacion.puntaje }}/10
+                {{ '· Aprobado' if apartado.calificacion.aprobado else '· Reformulado' }}
+              </span>
+            {% else %}
+              <span class="puntaje texto-ayuda">Sin generar todavía</span>
+            {% endif %}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+
+  <div class="barra-regenerar">
+    <span class="texto-ayuda" id="contador-seleccionados">0 apartados seleccionados</span>
+    <div style="display:flex; gap:10px;">
+      <a href="{{ url_for('dashboard') }}" class="boton boton-fantasma">Volver a mis documentos</a>
+      <a href="{{ url_for('descargar', job_id=trabajo._id|string) }}" class="boton boton-secundario">Descargar Word</a>
+      <button type="submit" class="boton boton-primario">Regenerar seleccionados</button>
+    </div>
+  </div>
+</form>
+
+<script>
+const casillas = document.querySelectorAll('input[name="recurso"]');
+const contador = document.getElementById('contador-seleccionados');
+function actualizarContador() {
+  const marcados = document.querySelectorAll('input[name="recurso"]:checked').length;
+  contador.textContent = marcados + (marcados === 1 ? ' apartado seleccionado' : ' apartados seleccionados');
+}
+casillas.forEach(c => c.addEventListener('change', actualizarContador));
+
+document.getElementById('form-regenerar').addEventListener('submit', function (evento) {
+  const marcados = document.querySelectorAll('input[name="recurso"]:checked').length;
+  if (marcados === 0) {
+    evento.preventDefault();
+    alert('Marca al menos un apartado antes de regenerar.');
+  }
+});
+</script>
+{% endblock %}

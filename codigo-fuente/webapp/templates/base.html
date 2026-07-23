@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block titulo %}Generador de Recursos Didácticos — UTPL{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="barra-superior">
+    <div class="marca">
+      <img src="{{ url_for('static', filename='img/logo_utpl.png') }}" alt="UTPL">
+      Generador de Recursos Didácticos
+    </div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Mis documentos</a>
+      <a href="{{ url_for('nuevo') }}">Nuevo documento</a>
+    </nav>
+  </header>
+
+  <main class="contenido {% block ancho_contenido %}{% endblock %}">
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% if mensajes %}
+        {% for categoria, mensaje in mensajes %}
+          <div class="alerta alerta-{{ categoria }}">{{ mensaje }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block contenido %}{% endblock %}
+  </main>
+</body>
+</html>

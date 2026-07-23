@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block titulo %}Mis documentos — UTPL{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina" style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:14px;">
+  <div>
+    <h1>Mis documentos</h1>
+    <p>Aquí ves los recursos didácticos generados, o los que quedaron pausados por falta de créditos.</p>
+  </div>
+  <a href="{{ url_for('nuevo') }}" class="boton boton-primario">Nuevo documento</a>
+</div>
+
+{% if not trabajos %}
+  <div class="tarjeta vacio">
+    <h3>Todavía no se ha generado ningún documento</h3>
+    <p>Crea el primero indicando la asignatura, sube el material del curso y listo.</p>
+    <a href="{{ url_for('nuevo') }}" class="boton boton-secundario" style="margin-top:16px;">Crear el primer documento</a>
+  </div>
+{% else %}
+  <div class="lista-trabajos">
+    {% for t in trabajos %}
+      <div class="fila-trabajo">
+        <div class="info">
+          <h3>{{ t.asignatura }} {% if t.codigo %}({{ t.codigo }}){% endif %}</h3>
+          <p>
+            {{ t.nombre_docente or "Docente no especificado" }}
+            {% if t.carrera %} · {{ t.carrera }}{% endif %}
+            {% if t.ciclo_academico %} · Ciclo {{ t.ciclo_academico }}{% endif %}
+            {% if t.periodo %} · Periodo {{ t.periodo }}{% endif %}
+            {% if t.costo_total_usd is defined and t.costo_total_usd is not none %} · ${{ "%.4f"|format(t.costo_total_usd) }}{% endif %}
+          </p>
+          <p>{{ t.mensaje }}</p>
+        </div>
+        <div class="acciones">
+          <span class="estado estado-{{ t.estado }}">
+            {%- if t.estado == 'borrador' -%} Borrador
+            {%- elif t.estado == 'pendiente' -%} En cola
+            {%- elif t.estado == 'procesando' -%} Procesando
+            {%- elif t.estado == 'pausado_sin_creditos' -%} Sin créditos
+            {%- elif t.estado == 'pausado_manual' -%} Pausado
+            {%- elif t.estado == 'completado' -%} Completado
+            {%- else -%} Error
+            {%- endif -%}
+          </span>
+
+          {% if t.estado == 'borrador' %}
+            <a href="{{ url_for('subir', job_id=t._id|string) }}" class="boton boton-fantasma">Continuar cargando</a>
+          {% elif t.estado in ('pendiente', 'procesando') %}
+            <a href="{{ url_for('progreso', job_id=t._id|string) }}" class="boton boton-fantasma">Ver progreso</a>
+          {% elif t.estado in ('pausado_sin_creditos', 'pausado_manual') %}
+            <a href="{{ url_for('progreso', job_id=t._id|string) }}" class="boton boton-secundario">Continuar procesando</a>
+          {% elif t.estado == 'completado' %}
+            <a href="{{ url_for('vista_previa', job_id=t._id|string) }}" class="boton boton-fantasma">Ver recursos</a>
+            <a href="{{ url_for('descargar', job_id=t._id|string) }}" class="boton boton-primario">Descargar</a>
+          {% elif t.estado == 'error' %}
+            <a href="{{ url_for('progreso', job_id=t._id|string) }}" class="boton boton-fantasma">Ver detalle</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock %}

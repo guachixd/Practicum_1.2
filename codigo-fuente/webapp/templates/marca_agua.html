@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}Marca de agua — UTPL{% endblock %}
+{% block ancho_contenido %}angosto{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina">
+  <h1>¿Marca de agua institucional?</h1>
+  <p>Protege la autoría del material generado con el logo de la UTPL y tu nombre en cada página.</p>
+</div>
+
+<div class="tarjeta">
+  <div class="barra-pasos">
+    <span class="paso activo"></span><span class="paso activo"></span><span class="paso activo"></span>
+  </div>
+
+  <form method="post">
+    <div class="opciones-marca">
+      <label class="opcion-marca">
+        <input type="radio" name="marca_agua" value="si" checked>
+        <span class="titulo-opcion">Sí, con marca de agua</span>
+        <span class="texto-ayuda">Logo UTPL + tu nombre, tenue, en todas las páginas del documento.</span>
+      </label>
+      <label class="opcion-marca">
+        <input type="radio" name="marca_agua" value="no">
+        <span class="titulo-opcion">No, sin marca de agua</span>
+        <span class="texto-ayuda">El documento se genera limpio, sin ningún elemento de marca.</span>
+      </label>
+    </div>
+
+    <div class="acciones-formulario">
+      <a href="{{ url_for('subir', job_id=trabajo._id|string) }}" class="boton boton-fantasma">← Volver</a>
+      <button type="submit" class="boton boton-primario">Generar documento</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block titulo %}Subir archivos — UTPL{% endblock %}
+{% block ancho_contenido %}angosto{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina">
+  <h1>Sube los archivos del curso</h1>
+  <p>{{ trabajo.asignatura }}{% if trabajo.codigo %} ({{ trabajo.codigo }}){% endif %} — no importa el nombre ni el orden de los archivos, el sistema los organiza solo por unidad.</p>
+</div>
+
+<div class="tarjeta">
+  <div class="barra-pasos">
+    <span class="paso activo"></span><span class="paso activo"></span><span class="paso"></span>
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    <div class="seccion-subida">
+      <h3>1. Plan docente y guía didáctica</h3>
+      <p class="texto-ayuda">Si subes el plan docente, de ahí se detectan las unidades del curso. Si no lo tienes a mano, no pasa nada: la estructura de unidades se detecta automáticamente a partir del resto del material que subas abajo. La guía didáctica es opcional.</p>
+
+      <label class="primero" for="plan_docente">Plan docente (recomendado)</label>
+      <div class="zona-subida">
+        <input type="file" id="plan_docente" name="plan_docente" accept=".pdf,.docx,.pptx">
+      </div>
+
+      <label for="guia_didactica">Guía didáctica (opcional)</label>
+      <div class="zona-subida">
+        <input type="file" id="guia_didactica" name="guia_didactica" accept=".pdf,.docx,.pptx">
+      </div>
+    </div>
+
+    <div class="seccion-subida">
+      <h3>2. Materiales adicionales</h3>
+      <p class="texto-ayuda">Diapositivas por semana, lecturas complementarias, cualquier otro archivo del curso. Puedes seleccionar varios a la vez.</p>
+
+      <label class="primero" for="materiales_extra">Materiales del curso</label>
+      <div class="zona-subida">
+        <input type="file" id="materiales_extra" name="materiales_extra" accept=".pdf,.docx,.pptx" multiple>
+      </div>
+      <p class="texto-ayuda">Formatos admitidos: PDF, Word (.docx) y PowerPoint (.pptx).</p>
+    </div>
+
+    <div class="acciones-formulario">
+      <a href="{{ url_for('dashboard') }}" class="boton boton-fantasma">Guardar y salir</a>
+      <button type="submit" class="boton boton-primario">Continuar → Marca de agua</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

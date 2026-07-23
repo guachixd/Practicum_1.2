@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block titulo %}Generando documento — UTPL{% endblock %}
+{% block ancho_contenido %}angosto{% endblock %}
+{% block contenido %}
+
+<div class="encabezado-pagina">
+  <h1>{{ trabajo.asignatura }}{% if trabajo.codigo %} ({{ trabajo.codigo }}){% endif %}</h1>
+  <p>Generación de recursos didácticos</p>
+</div>
+
+<div class="tarjeta tarjeta-progreso" id="tarjeta-progreso">
+  <div id="zona-en-progreso" style="display:none;">
+    <div class="spinner"></div>
+    <p class="mensaje-progreso" id="txt-mensaje">Procesando...</p>
+    <p class="fase-progreso" id="txt-fase"></p>
+
+    <div id="zona-barra" style="display:none; text-align:left;">
+      <p class="texto-progreso-unidades" id="txt-unidades"></p>
+      <div class="barra-progreso-real">
+        <div class="relleno" id="relleno-barra"></div>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('pausar', job_id=trabajo._id|string) }}">
+      <button type="submit" class="boton boton-pausar">Pausar</button>
+    </form>
+  </div>
+
+  <div id="zona-pausado" style="display:none;">
+    <div class="etiqueta-estado etiqueta-advertencia" id="etiqueta-pausado">Pausado</div>
+    <p class="mensaje-progreso" id="txt-mensaje-pausado"></p>
+    <form method="post" action="{{ url_for('continuar', job_id=trabajo._id|string) }}">
+      <button type="submit" class="boton boton-primario" style="margin-top:10px;">Continuar procesando</button>
+    </form>
+  </div>
+
+  <div id="zona-error" style="display:none;">
+    <div class="etiqueta-estado etiqueta-error">Error</div>
+    <p class="mensaje-progreso" id="txt-mensaje-error"></p>
+    <form method="post" action="{{ url_for('continuar', job_id=trabajo._id|string) }}">
+      <button type="submit" class="boton boton-secundario" style="margin-top:10px;">Reintentar</button>
+    </form>
+  </div>
+
+  <div id="zona-completado" style="display:none;">
+    <div class="etiqueta-estado etiqueta-exito">Completado</div>
+    <p class="mensaje-progreso">El documento ya está listo.</p>
+    <a href="{{ url_for('vista_previa', job_id=trabajo._id|string) }}" class="boton boton-secundario" style="margin-top:10px;">Ver recursos generados</a>
+    <a href="{{ url_for('descargar', job_id=trabajo._id|string) }}" class="boton boton-primario" style="margin-top:10px;">Descargar documento</a>
+    <div style="margin-top:14px;"><a href="{{ url_for('dashboard') }}">Volver a mis documentos</a></div>
+  </div>
+</div>
+
+<script>
+const jobId = "{{ trabajo._id|string }}";
+const urlEstado = "{{ url_for('api_estado', job_id=trabajo._id|string) }}";
+
+const nombresFase = {
+  extraccion: "Leyendo los archivos subidos...",
+  introduccion: "Redactando la introducción general del curso...",
+  generacion: "Generando y evaluando cada unidad...",
+  exportacion: "Armando el documento Word final...",
+  finalizado: "¡Listo!"
+};
+
+function mostrarSolo(id) {
+  ["zona-en-progreso", "zona-pausado", "zona-error", "zona-completado"].forEach(zona => {
+    document.getElementById(zona).style.display = (zona === id) ? "block" : "none";
+  });
+}
+
+async function consultarEstado() {
+  try {
+    const respuesta = await fetch(urlEstado);
+    const datos = await respuesta.json();
+
+    if (datos.estado === "completado") {
+      mostrarSolo("zona-completado");
+      return;
+    }
+    if (datos.estado === "pausado_sin_creditos" || datos.estado === "pausado_manual") {
+      document.getElementById("txt-mensaje-pausado").textContent = datos.mensaje;
+      document.getElementById("etiqueta-pausado").textContent =
+        datos.estado === "pausado_manual" ? "Pausado por ti" : "Sin créditos";
+      mostrarSolo("zona-pausado");
+      return;
+    }
+    if (datos.estado === "error") {
+      document.getElementById("txt-mensaje-error").textContent = datos.mensaje;
+      mostrarSolo("zona-error");
+      return;
+    }
+
+    document.getElementById("txt-mensaje").textContent = datos.mensaje || "Procesando...";
+    document.getElementById("txt-fase").textContent = nombresFase[datos.fase_actual] || "";
+
+    const zonaBarra = document.getElementById("zona-barra");
+    if (datos.total_unidades) {
+      zonaBarra.style.display = "block";
+      const actual = Math.min(datos.unidad_actual || 0, datos.total_unidades);
+      document.getElementById("txt-unidades").textContent =
+        `Unidad ${actual} de ${datos.total_unidades}`;
+      document.getElementById("relleno-barra").style.width = `${datos.progreso_pct || 0}%`;
+    } else {
+      zonaBarra.style.display = "none";
+    }
+
+    mostrarSolo("zona-en-progreso");
+    setTimeout(consultarEstado, 2500);
+  } catch (e) {
+    setTimeout(consultarEstado, 4000);
+  }
+}
+
+consultarEstado();
+</script>
+{% endblock %}
