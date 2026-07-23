@@ -8,17 +8,24 @@ se genera directamente.
 
 ## Qué cambió en esta versión
 
+- **Un solo modelo para todo el pipeline: `gemini-3.1-flash-lite`.**
+  Antes se usaba `gemini-2.5-flash` para generar contenido y
+  `gemini-2.5-flash-lite` para tareas livianas (clasificar, evaluar).
+  `gemini-3.1-flash-lite` iguala la calidad de `gemini-2.5-flash` pero
+  con una cuota diaria gratuita mucho más alta, así que ahora se usa
+  para todo: detectar la estructura del curso, clasificar archivos,
+  generar recursos y evaluarlos.
+- **Detección de estructura sin límite de caracteres real.** Un plan
+  docente extenso (decenas de miles de caracteres) se manda casi
+  completo a Gemini para detectar sus unidades — antes se cortaba a los
+  primeros 3.000 caracteres y se perdían unidades enteras si el plan
+  docente era largo.
 - **Menos llamadas a la API por documento.** Antes, cada unidad hacía 8
   llamadas a Gemini (4 para generar cada recurso por separado, 4 para
   evaluarlos por separado). Ahora son solo 2: una que genera los 4
   recursos juntos en un solo JSON, y otra que los evalúa juntos. Si algo
   del JSON viene incompleto, esa pieza puntual se pide aparte, sin
   repetir las demás.
-- **Detección de estructura y clasificación de archivos con un modelo
-  más liviano** (`gemini-2.5-flash-lite`), separado del que genera el
-  contenido (`gemini-2.5-flash`). Como cada modelo tiene su propia
-  cuota, esto evita que clasificar archivos consuma la cuota que hace
-  falta para generar el contenido real.
 - **Caché por archivo.** Si subes el mismo archivo (por contenido, no
   por nombre) que ya se clasificó antes, no se vuelve a mandar a
   Gemini — se reusa el resultado guardado.
@@ -33,16 +40,19 @@ se genera directamente.
   combinación (el resumen de la Unidad 2, el glosario de la Unidad 4,
   lo que sea) y regenerar solo esos, sin tocar el resto del documento.
   Se guarda la versión anterior antes de reemplazarla.
+- **Portada con logo institucional en grande**, más los datos de
+  carrera, ciclo académico y periodo, y un glosario que se exporta como
+  tabla de Word en vez de párrafos sueltos.
 - **Consumo de la API más pausado.** Cada llamada a Gemini espera unos
   segundos antes de la siguiente (`SEGUNDOS_ENTRE_LLAMADAS_IA` en el
   `.env`, 4s por defecto), para no agotar el límite de solicitudes por
   minuto de la cuota gratuita tan rápido.
 - **Tabla de costos en consola.** Al terminar (o pausarse, o fallar)
   cada generación, se imprime en la consola donde corre `python app.py`
-  (la consola de PyCharm, si lo corres desde ahí) una tabla con los
-  tokens **reales** que reportó la API de Gemini y el costo aproximado
-  en dólares, por modelo y por asignatura. El costo total también queda
-  guardado junto con el trabajo (se ve en el panel principal).
+  una tabla con los tokens **reales** que reportó la API de Gemini y el
+  costo aproximado en dólares, por modelo y por asignatura. El costo
+  total también queda guardado junto con el trabajo (se ve en el panel
+  principal).
 - **Sin login.** No hay usuarios, contraseñas ni panel de administración.
   El nombre del docente se pide como un dato más del formulario "Nuevo
   documento" (para la portada y la marca de agua), no como credencial.
@@ -60,32 +70,32 @@ se genera directamente.
 
 ## Estructura del proyecto
 
-```
-src/                  Pipeline (lógica)
-  main.py              Uso por línea de comandos (se conserva, opcional)
-  pipeline.py          Orquestador RESUMIBLE que usa la web
-  bd.py                Base de datos: trabajos, unidades, recursos, evaluaciones
-  extractor.py         Lectura de PDF/Word/PowerPoint
-  clasificador.py      Detección de unidades + clasificación de archivos
-  base_conocimiento.py Arma las unidades del curso
-  generador_recursos.py Prompts + llamadas a Gemini
-  evaluador.py         Evaluación automática (LLM-as-a-judge)
-  exportador.py        Genera el Word final
-  marca_agua.py        Marca de agua institucional
-  reintentos.py        Reintentos + espaciado entre llamadas + CuotaAgotadaError
-  costos.py            Seguimiento de tokens reales y tabla de costos en consola
+src/ Pipeline (lógica)
+main.py Uso por línea de comandos (se conserva, opcional)
+pipeline.py Orquestador RESUMIBLE que usa la web
+bd.py Base de datos: trabajos, unidades, recursos, evaluaciones,
+caché de clasificación e historial del recurso al regenerar
+extractor.py Lectura de PDF/Word/PowerPoint
+clasificador.py Detección de unidades + clasificación de archivos (con caché)
+base_conocimiento.py Arma las unidades del curso
+generador_recursos.py Prompts + llamadas a Gemini (1 llamada por unidad)
+evaluador.py Evaluación automática (LLM-as-a-judge, 1 llamada por unidad)
+exportador.py Genera el Word final (portada con logo, glosario en tabla)
+marca_agua.py Marca de agua institucional
+reintentos.py Reintentos + espaciado entre llamadas + CuotaAgotadaError
+costos.py Seguimiento de tokens reales y tabla de costos en consola
 webapp/
-  app.py               Rutas de Flask (sin login)
-  templates/           Páginas (panel, nuevo documento, subida, progreso)
-  static/              CSS e imágenes (colores institucionales UTPL)
+app.py Rutas de Flask (sin login, con pausar/continuar y vista previa)
+templates/ Páginas (panel, nuevo documento, subida, progreso, vista previa)
+static/ CSS e imágenes (colores institucionales UTPL)
 assets/
-  logo_utpl.png        Logo institucional (marca de agua y portada)
+logo_utpl.png Logo institucional (marca de agua y portada)
 data/
-  material/<job_id>/   Archivos subidos por cada trabajo (se crea solo)
-  salida/              Documentos Word generados (se crea solo)
+material/<job_id>/ Archivos subidos por cada trabajo (se crea solo)
+salida/ Documentos Word generados (se crea solo)
 requirements.txt
 .env.example
-```
+
 
 ## Instalación
 
@@ -93,11 +103,11 @@ requirements.txt
    `mongodb://localhost:27017` por defecto).
 2. Crea un entorno virtual e instala dependencias:
 
-   ```bash
+```bash
    python -m venv .venv
    source .venv/bin/activate        # En Windows: .venv\Scripts\activate
    pip install -r requirements.txt
-   ```
+```
 
 3. Copia `.env.example` a `.env` (en la raíz del proyecto) y completa al
    menos `GEMINI_API_KEY`.
@@ -124,13 +134,18 @@ Abre `http://localhost:5000` en el navegador:
    del material.
 4. Elige si el documento final lleva **marca de agua institucional** o
    no.
-5. Observa el progreso en vivo. Mientras tanto, en la consola donde
-   corre `python app.py` vas viendo el avance real y, al terminar (o
-   pausarse), la tabla de costos aproximados de esa corrida. Si en
-   algún momento se agotan los créditos/tokens de la IA, la pantalla lo
-   indica y basta con presionar **"Continuar procesando"** más tarde
-   para retomar justo donde se quedó.
-6. Descarga el documento Word final desde "Mis documentos".
+5. Observa el progreso en vivo, con la barra de "unidad X de N" y el
+   botón de **pausar** si necesitas detenerlo. Mientras tanto, en la
+   consola donde corre `python app.py` vas viendo el avance real, la
+   calificación de cada apartado, y al terminar (o pausarse) la tabla
+   de costos aproximados de esa corrida. Si en algún momento se agotan
+   los créditos/tokens de la IA, la pantalla lo indica y basta con
+   presionar **"Continuar procesando"** más tarde para retomar justo
+   donde se quedó.
+6. Al terminar, presiona **"Ver recursos"** para revisar cada apartado
+   con su calificación y, si quieres, marcar cualquier combinación para
+   regenerarla sin tocar el resto del documento.
+7. Descarga el documento Word final desde "Mis documentos".
 
 ## Uso por línea de comandos (opcional, para pruebas locales)
 
@@ -161,10 +176,10 @@ para distinguir corridas de prueba en la base de datos si lo necesitas).
   interno/piloto. Para un uso más formal, corre la app con un servidor
   WSGI de producción, por ejemplo:
 
-  ```bash
+```bash
   pip install gunicorn
   gunicorn -w 2 -b 0.0.0.0:5000 app:app
-  ```
+```
 
 - La generación de cada documento corre en un hilo en segundo plano por
   trabajo; con `gunicorn` usa al menos 2 workers para que la pantalla de
