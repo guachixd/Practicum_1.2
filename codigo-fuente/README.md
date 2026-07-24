@@ -1,191 +1,226 @@
-# Generador de Recursos Didácticos — UTPL (interfaz web)
+# Guía de instalación y ejecución — Generador de Recursos Didácticos (UTPL)
 
-Aplicación web para generar recursos didácticos (resumen ejecutivo,
-glosario, preguntas de comprensión y actividad de reflexión por unidad)
-a partir del material de un curso, sin necesidad de tocar PyCharm ni
-depender de un programador. Sin cuentas ni login: se abre la página y
-se genera directamente.
+Esta guía explica, paso a paso, cómo dejar el proyecto corriendo igual
+que en el entorno original. Como el repositorio **no incluye** ciertos
+archivos a propósito (el entorno virtual, la clave de API, y el
+material de prueba subido), aquí se explica exactamente cómo recrear
+cada uno.
 
-## Qué cambió en esta versión
+## Qué SÍ está en el repositorio y qué NO, y por qué
 
-- **Un solo modelo para todo el pipeline: `gemini-3.1-flash-lite`.**
-  Antes se usaba `gemini-2.5-flash` para generar contenido y
-  `gemini-2.5-flash-lite` para tareas livianas (clasificar, evaluar).
-  `gemini-3.1-flash-lite` iguala la calidad de `gemini-2.5-flash` pero
-  con una cuota diaria gratuita mucho más alta, así que ahora se usa
-  para todo: detectar la estructura del curso, clasificar archivos,
-  generar recursos y evaluarlos.
-- **Detección de estructura sin límite de caracteres real.** Un plan
-  docente extenso (decenas de miles de caracteres) se manda casi
-  completo a Gemini para detectar sus unidades — antes se cortaba a los
-  primeros 3.000 caracteres y se perdían unidades enteras si el plan
-  docente era largo.
-- **Menos llamadas a la API por documento.** Antes, cada unidad hacía 8
-  llamadas a Gemini (4 para generar cada recurso por separado, 4 para
-  evaluarlos por separado). Ahora son solo 2: una que genera los 4
-  recursos juntos en un solo JSON, y otra que los evalúa juntos. Si algo
-  del JSON viene incompleto, esa pieza puntual se pide aparte, sin
-  repetir las demás.
-- **Caché por archivo.** Si subes el mismo archivo (por contenido, no
-  por nombre) que ya se clasificó antes, no se vuelve a mandar a
-  Gemini — se reusa el resultado guardado.
-- **Calificación de cada apartado en consola**, apenas se evalúa, y un
-  resumen guardado junto con el trabajo (cuántos se aprobaron a la
-  primera vs. cuántos necesitaron reformular).
-- **Barra de progreso real** (unidad X de N) y botón para **pausar
-  manualmente** la generación — se detiene entre unidades, nunca a
-  mitad de una llamada a la IA, y se retoma después sin perder nada.
-- **Vista previa con calificaciones.** Al terminar, "Ver recursos" te
-  deja revisar cada apartado con su puntaje, marcar cualquier
-  combinación (el resumen de la Unidad 2, el glosario de la Unidad 4,
-  lo que sea) y regenerar solo esos, sin tocar el resto del documento.
-  Se guarda la versión anterior antes de reemplazarla.
-- **Portada con logo institucional en grande**, más los datos de
-  carrera, ciclo académico y periodo, y un glosario que se exporta como
-  tabla de Word en vez de párrafos sueltos.
-- **Consumo de la API más pausado.** Cada llamada a Gemini espera unos
-  segundos antes de la siguiente (`SEGUNDOS_ENTRE_LLAMADAS_IA` en el
-  `.env`, 4s por defecto), para no agotar el límite de solicitudes por
-  minuto de la cuota gratuita tan rápido.
-- **Tabla de costos en consola.** Al terminar (o pausarse, o fallar)
-  cada generación, se imprime en la consola donde corre `python app.py`
-  una tabla con los tokens **reales** que reportó la API de Gemini y el
-  costo aproximado en dólares, por modelo y por asignatura. El costo
-  total también queda guardado junto con el trabajo (se ve en el panel
-  principal).
-- **Sin login.** No hay usuarios, contraseñas ni panel de administración.
-  El nombre del docente se pide como un dato más del formulario "Nuevo
-  documento" (para la portada y la marca de agua), no como credencial.
-- **Generación automática de unidades sin material propio.** Si una
-  unidad del plan docente no tiene archivos propios subidos, igual se
-  genera su documentación completa a partir del título y los temas del
-  plan docente. Si ni siquiera hay un plan docente reconocible, la
-  estructura de unidades se infiere del resto del material.
-- **Un documento a la vez.** Todos los trabajos comparten la misma
-  cuota de la API, así que no se permite generar o continuar dos al
-  mismo tiempo — sale un aviso en pantalla si se intenta.
-- **Recuperación de trabajos huérfanos.** Si el servidor se reinicia a
-  media generación, el trabajo que quedó a medias se retoma solo al
-  arrancar de nuevo.
+| Elemento | ¿Está en el repo? | Por qué |
+|---|---|---|
+| Código fuente (`src/`, `webapp/`) | Sí | Es el proyecto en sí |
+| `assets/logo_utpl.png` | Sí | Necesario para la marca de agua y la portada |
+| `requirements.txt` | Sí | Lista de librerías necesarias |
+| `.env.example` | Sí | Plantilla de configuración, sin datos reales |
+| `.env` (con la clave real de la API) | **No** | Contiene una clave privada; nunca se sube a un repositorio |
+| `.venv/` (entorno virtual de Python) | **No** | Se recrea localmente con un comando; subirlo pesaría muchísimo |
+| `data/material/` (PDFs de prueba subidos) | **No** (o vacío) | Material de ejemplo de una asignatura específica, no es parte del código |
+| `data/salida/` (Word ya generados) | **No** (o vacío) | Se generan solos al usar el programa |
 
-## Estructura del proyecto
+Ninguno de estos faltantes es un error: hay que **crearlos de nuevo**
+siguiendo esta guía, y en unos 10-15 minutos queda todo funcionando.
 
-src/ Pipeline (lógica)
-main.py Uso por línea de comandos (se conserva, opcional)
-pipeline.py Orquestador RESUMIBLE que usa la web
-bd.py Base de datos: trabajos, unidades, recursos, evaluaciones,
-caché de clasificación e historial del recurso al regenerar
-extractor.py Lectura de PDF/Word/PowerPoint
-clasificador.py Detección de unidades + clasificación de archivos (con caché)
-base_conocimiento.py Arma las unidades del curso
-generador_recursos.py Prompts + llamadas a Gemini (1 llamada por unidad)
-evaluador.py Evaluación automática (LLM-as-a-judge, 1 llamada por unidad)
-exportador.py Genera el Word final (portada con logo, glosario en tabla)
-marca_agua.py Marca de agua institucional
-reintentos.py Reintentos + espaciado entre llamadas + CuotaAgotadaError
-costos.py Seguimiento de tokens reales y tabla de costos en consola
-webapp/
-app.py Rutas de Flask (sin login, con pausar/continuar y vista previa)
-templates/ Páginas (panel, nuevo documento, subida, progreso, vista previa)
-static/ CSS e imágenes (colores institucionales UTPL)
-assets/
-logo_utpl.png Logo institucional (marca de agua y portada)
-data/
-material/<job_id>/ Archivos subidos por cada trabajo (se crea solo)
-salida/ Documentos Word generados (se crea solo)
-requirements.txt
-.env.example
+---
+
+## Requisitos previos
+
+- **Python 3.11 o superior**. Para verificar si ya está instalado, abre
+  una terminal (PowerShell en Windows, Terminal en Mac/Linux) y escribe:
+
+python --version
+
+  Si no lo reconoce, prueba con `py --version`. Si tampoco, hay que
+  instalarlo (ver sección "Instalar Python" más abajo).
+
+- **MongoDB Community Server**, corriendo localmente. El programa
+  guarda ahí todo lo que genera (unidades, recursos, evaluaciones,
+  costos). Ver sección "Instalar MongoDB" más abajo si no lo tienes.
+
+- **Una clave de API de Google Gemini** (gratuita). Se obtiene en
+  [aistudio.google.com/apikey](https://aistudio.google.com/apikey) con
+  cualquier cuenta de Google — botón "Create API key".
+
+---
+
+## Instalar Python (si no lo tienes)
+
+**Windows**, desde PowerShell:
+
+winget install -e --id Python.Python.3.12
+
+Cierra y vuelve a abrir la terminal después de instalar, para que
+reconozca el comando nuevo.
+
+**Mac**, con Homebrew:
+
+brew install python@3.12
 
 
-## Instalación
+**Linux (Debian/Ubuntu)**:
 
-1. Instala Python 3.11+ y MongoDB Community Server (local, corriendo en
-   `mongodb://localhost:27017` por defecto).
-2. Crea un entorno virtual e instala dependencias:
+sudo apt install python3 python3-venv python3-pip
 
-```bash
-   python -m venv .venv
-   source .venv/bin/activate        # En Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-```
 
-3. Copia `.env.example` a `.env` (en la raíz del proyecto) y completa al
-   menos `GEMINI_API_KEY`.
+---
 
-## Cómo correr la interfaz web
+## Instalar MongoDB Community Server (si no lo tienes)
 
-```bash
+Descárgalo de [mongodb.com/try/download/community](https://www.mongodb.com/try/download/community),
+elige tu sistema operativo, e instálalo con las opciones por defecto
+(en Windows, marca la opción de "Instalar como servicio" para que
+arranque solo). No hace falta configurar usuarios ni contraseñas para
+uso local — el proyecto se conecta a `mongodb://localhost:27017` por
+defecto, sin autenticación.
+
+Para confirmar que está corriendo (Windows): abre el "Administrador de
+tareas" y busca un proceso llamado `mongod.exe`. Si no aparece, busca
+"Servicios" en el menú de inicio y arranca el servicio "MongoDB Server".
+
+---
+
+## Paso a paso para dejar el proyecto corriendo
+
+### 1. Descarga o clona el repositorio
+
+Descarga el código (botón "Code" → "Download ZIP" en GitHub, o
+`git clone` si prefieres línea de comandos) y descomprímelo en una
+carpeta de tu elección.
+
+### 2. Abre una terminal en la carpeta raíz del proyecto
+
+La carpeta raíz es la que tiene `requirements.txt`, `src/`, `webapp/`,
+`assets/` y `data/` todos al mismo nivel.
+
+### 3. Crea el entorno virtual (no viene incluido en el repositorio)
+
+python -m venv .venv
+
+(si `python` no funciona, usa `py -m venv .venv`)
+
+Esto crea una carpeta `.venv/` nueva con una instalación aislada de
+Python solo para este proyecto — es justo la carpeta que no se sube al
+repositorio.
+
+### 4. Activa el entorno virtual
+
+- **Windows (PowerShell)**:
+
+..venv\Scripts\Activate.ps1
+
+  Si aparece un error de "ejecución de scripts deshabilitada", corre
+  esto una sola vez y vuelve a intentar:
+
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+  (responde `S` cuando pregunte)
+
+- **Mac / Linux**:
+
+source .venv/bin/activate
+
+
+Sabes que funcionó porque la línea de la terminal empieza a mostrar
+`(.venv)` al inicio.
+
+### 5. Instala las dependencias
+
+Con el entorno virtual ya activado:
+
+pip install -r requirements.txt
+
+Tarda 1-2 minutos. Al final no debe haber ninguna línea en rojo con
+"ERROR".
+
+### 6. Crea tu archivo `.env` (no viene incluido, por seguridad)
+
+Copia el archivo `.env.example` que sí está en el repositorio, y
+renombra la copia a `.env` (sin ".example"). Ábrelo y completa al
+menos esta línea con tu propia clave real:
+
+GEMINI_API_KEY=tu_clave_real_aqui
+
+Las demás variables ya tienen valores por defecto razonables y no hace
+falta tocarlas para una primera prueba (ver la sección de variables
+más abajo si quieres ajustarlas).
+
+### 7. Confirma que MongoDB esté corriendo
+
+Si lo instalaste como servicio, ya debería estar activo. Si no estás
+seguro, revisa el "Administrador de tareas" (Windows) buscando
+`mongod.exe`, o corre `mongosh` en una terminal aparte para confirmar
+que conecta sin error.
+
+### 8. Corre la aplicación web
+
 cd webapp
 python app.py
-```
 
-Abre `http://localhost:5000` en el navegador:
+Cuando la consola muestre `Running on http://127.0.0.1:5000`, abre esa
+dirección en el navegador.
 
-1. Se ve directo el panel de "Mis documentos" (sin login). Presiona
-   **"Nuevo documento"**.
-2. Llena nombre del docente, carrera, ciclo académico, periodo,
-   asignatura y código (esto también arma la portada y la marca de
-   agua).
-3. Sube el **plan docente** (recomendado, no obligatorio) y, si tiene,
-   la **guía didáctica**; luego los **materiales adicionales**
-   (diapositivas por semana, lecturas, etc. — no importa el nombre ni
-   el orden de los archivos). Si no subes ningún plan docente, la
-   estructura de unidades se detecta automáticamente a partir del resto
-   del material.
-4. Elige si el documento final lleva **marca de agua institucional** o
-   no.
-5. Observa el progreso en vivo, con la barra de "unidad X de N" y el
-   botón de **pausar** si necesitas detenerlo. Mientras tanto, en la
-   consola donde corre `python app.py` vas viendo el avance real, la
-   calificación de cada apartado, y al terminar (o pausarse) la tabla
-   de costos aproximados de esa corrida. Si en algún momento se agotan
-   los créditos/tokens de la IA, la pantalla lo indica y basta con
-   presionar **"Continuar procesando"** más tarde para retomar justo
-   donde se quedó.
-6. Al terminar, presiona **"Ver recursos"** para revisar cada apartado
-   con su calificación y, si quieres, marcar cualquier combinación para
-   regenerarla sin tocar el resto del documento.
-7. Descarga el documento Word final desde "Mis documentos".
+### 9. Prueba el flujo completo
 
-## Uso por línea de comandos (opcional, para pruebas locales)
+1. En el panel principal, presiona "Nuevo documento".
+2. Llena los datos generales (nombre del docente, asignatura, código,
+   etc.).
+3. Sube el material de una asignatura (idealmente el plan docente,
+   aunque no es obligatorio — si no lo subes, la estructura de
+   unidades se infiere del resto del material).
+4. Elige si quieres marca de agua institucional.
+5. Observa el progreso en vivo. En la consola donde corre `python
+   app.py` puedes ver el avance real, la calificación de cada apartado,
+   y al finalizar, una tabla con el costo aproximado en dólares de esa
+   generación (con los tokens reales que reportó la API de Gemini).
+6. Al terminar, revisa "Ver recursos" para ver cada apartado con su
+   calificación, y descarga el documento Word final.
 
-`src/main.py` se conserva para correr el pipeline directamente sobre una
-carpeta `data/material/` sin pasar por la web (útil para depurar). Usa
-las mismas variables de entorno de siempre (`ASIGNATURA`,
-`CODIGO_ASIGNATURA`, `NOMBRE_DOCENTE`, `RUTA_LOGO_UTPL`). Al terminar (o
-si se queda sin créditos) imprime también la tabla de costos de esa
-corrida. Si se queda sin créditos a media corrida, basta con volver a
-correr el mismo comando para continuar donde se quedó (usa `JOB_ID_CLI`
-para distinguir corridas de prueba en la base de datos si lo necesitas).
+---
 
-## Variables de entorno relevantes (`.env`)
+## Variables de entorno (`.env`) explicadas
 
-- `GEMINI_API_KEY` — obligatoria.
-- `MONGO_URI` — por defecto `mongodb://localhost:27017`.
-- `SECRET_KEY` — usada por Flask para las cookies de sesión (mensajes
-  flash); cualquier texto largo sirve, ya no protege ninguna cuenta.
-- `SEGUNDOS_ENTRE_LLAMADAS_IA` — segundos de espera después de cada
-  llamada exitosa a Gemini (por defecto `4`). Subir este valor consume
-  la cuota todavía más lento; bajarlo a `0` la desactiva por completo
-  (no recomendado si te quedas sin cuota seguido).
-- `PORT` — puerto de la web (por defecto `5000`).
+| Variable | Obligatoria | Qué hace |
+|---|---|---|
+| `GEMINI_API_KEY` | Sí | Tu clave personal de la API de Gemini |
+| `MONGO_URI` | No | Dirección de MongoDB (por defecto `mongodb://localhost:27017`, no tocar si es instalación local estándar) |
+| `SECRET_KEY` | No | Usada por Flask internamente para las cookies de sesión; cualquier texto largo sirve |
+| `SEGUNDOS_ENTRE_LLAMADAS_IA` | No | Segundos de espera después de cada llamada a Gemini, para no agotar la cuota por minuto (por defecto 4) |
+| `PORT` | No | Puerto de la web (por defecto 5000) |
 
-## Notas de despliegue
+---
 
-- El servidor de desarrollo de Flask (`python app.py`) alcanza para uso
-  interno/piloto. Para un uso más formal, corre la app con un servidor
-  WSGI de producción, por ejemplo:
+## Uso alternativo por línea de comandos (sin la interfaz web)
 
-```bash
-  pip install gunicorn
-  gunicorn -w 2 -b 0.0.0.0:5000 app:app
-```
+Para pruebas rápidas sin pasar por el navegador, `src/main.py` corre el
+mismo pipeline directamente sobre lo que haya en `data/material/`:
 
-- La generación de cada documento corre en un hilo en segundo plano por
-  trabajo; con `gunicorn` usa al menos 2 workers para que la pantalla de
-  progreso pueda seguir consultando el estado mientras un trabajo se
-  procesa.
-- Como ya no hay cuentas, cualquier persona con acceso a la URL puede
-  ver y descargar todos los documentos listados en el panel. Si vas a
-  exponer esto más allá de tu propia máquina, considera ponerlo detrás
-  de una VPN o de autenticación a nivel de red (no de la aplicación).
+cd src
+python main.py
+
+Usa las variables `ASIGNATURA`, `CODIGO_ASIGNATURA` y `NOMBRE_DOCENTE`
+del mismo `.env` para identificar la corrida.
+
+---
+
+## Problemas comunes al replicar el entorno
+
+- **"No module named 'flask'" (o cualquier otro módulo)**: el entorno
+  virtual no está activado, o el `pip install` se corrió en la carpeta
+  equivocada. Verifica que la terminal muestre `(.venv)` al inicio y
+  que estés en la carpeta raíz del proyecto al correr `pip install`.
+
+- **"No se pudo conectar a MongoDB"**: el servicio de MongoDB no está
+  corriendo. Revisa la sección de instalación de MongoDB más arriba.
+
+- **"No se encontró GEMINI_API_KEY"**: el archivo `.env` no existe
+  todavía, o existe pero está vacío en esa línea, o tiene texto extra
+  pegado por accidente junto a la clave (revisa que la línea diga
+  únicamente `GEMINI_API_KEY=` seguido de la clave, sin espacios ni
+  texto adicional).
+
+- **Se agota la cuota de la API muy rápido**: el nivel gratuito de
+  Gemini tiene límites de solicitudes por día bastante bajos. El
+  proyecto ya está diseñado para pausarse solo cuando esto pasa (verás
+  un aviso claro en pantalla) y retomar exactamente donde se quedó con
+  el botón "Continuar procesando" — no hay que reiniciar nada.
